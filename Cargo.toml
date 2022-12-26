@@ -7,4 +7,5 @@ edition = "2021"
 
 [dependencies]
 imap = "2.4.1"
+mail-parser = "0.8.0"
 native-tls = "0.2.11"
