@@ -2,6 +2,7 @@ use std::env;
 use std::process;
 
 use imap;
+use mail_parser;
 use native_tls;
 
 fn fetch_inbox_top() -> imap::error::Result<Option<String>> {
@@ -63,5 +64,12 @@ fn fetch_inbox_top() -> imap::error::Result<Option<String>> {
 
 fn main() {
     let body = fetch_inbox_top().unwrap().unwrap();
-    println!("body:\n{}", body);
+    let message = mail_parser::Message::parse(body.as_bytes()).unwrap();
+    println!("from: {:?}", message.from());
+    println!("date: {}", message.date().unwrap().to_rfc3339());
+    println!("subject: {}", message.subject().unwrap());
+    println!("body:");
+    for i in message.text_body.clone().into_iter() {
+        println!("{}", message.body_text(i-1).unwrap());
+    }
 }
