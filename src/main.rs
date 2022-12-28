@@ -42,7 +42,6 @@ fn fetch_inbox_top() -> imap::error::Result<Option<String>> {
     } else {
         return Ok(None);
     };
-    println!("uid: {}", uid);
 
     let messages = session.fetch(format!("{}", uid), "RFC822")?;
     let message = if let Some(m) = messages.iter().next() {
