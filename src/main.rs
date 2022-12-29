@@ -64,11 +64,18 @@ fn fetch_inbox_top() -> imap::error::Result<Option<String>> {
 fn main() {
     let body = fetch_inbox_top().unwrap().unwrap();
     let message = mail_parser::Message::parse(body.as_bytes()).unwrap();
-    println!("from: {:?}", message.from());
+    let from: String;
+    match message.from().clone() {
+        mail_parser::HeaderValue::Address(addr) => {
+            from = format!("{} <{}>", addr.name.unwrap(), addr.address.unwrap());
+        }
+        _default => process::exit(1)
+    }
+    println!("from: {}", from);
     println!("date: {}", message.date().unwrap().to_rfc3339());
     println!("subject: {}", message.subject().unwrap());
     println!("body:");
     for i in message.text_body.clone().into_iter() {
-        println!("{}", message.body_text(i-1).unwrap());
+        println!("{}", message.body_text(i - 1).unwrap());
     }
 }
