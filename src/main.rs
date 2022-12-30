@@ -69,7 +69,10 @@ fn main() {
         mail_parser::HeaderValue::Address(addr) => {
             from = format!("{} <{}>", addr.name.unwrap(), addr.address.unwrap());
         }
-        _default => process::exit(1)
+        _default => {
+            println!("err: invalid from header value");
+            process::exit(1)
+        }
     }
     println!("from: {}", from);
     println!("date: {}", message.date().unwrap().to_rfc3339());
