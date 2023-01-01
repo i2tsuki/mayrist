@@ -1,9 +1,23 @@
 use std::env;
+use std::fs;
 use std::process;
 
 use imap;
 use mail_parser;
 use native_tls;
+use serde_derive::Deserialize;
+use toml;
+
+#[derive(Deserialize)]
+struct Filter {
+    all: All,
+}
+
+#[derive(Deserialize)]
+struct All {
+    block: Vec<String>,
+    line: Vec<String>,
+}
 
 fn fetch_inbox_top() -> imap::error::Result<Option<String>> {
     let imap_host: String = match env::var("IMAP_HOST") {
@@ -74,6 +88,23 @@ fn main() {
             process::exit(1)
         }
     }
+
+    let filter_filename = "./filter.toml";
+    let filter_body = match fs::read_to_string(filter_filename) {
+        Ok(c) => c,
+        Err(_) => {
+            println!("err: could not read the file `{}`", filter_filename);
+            process::exit(1);
+        }
+    };
+    let filter: Filter = match toml::from_str(&filter_body) {
+        Ok(f) => f,
+        Err(err) => {
+            println!("err: failed to parse the file `{}`: {}", filter_filename, err);
+            process::exit(1);
+        }
+    };
+
     println!("from: {}", from);
     println!("date: {}", message.date().unwrap().to_rfc3339());
     println!("subject: {}", message.subject().unwrap());
