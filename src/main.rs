@@ -1,5 +1,8 @@
 use std::env;
 use std::fs;
+use std::io::{Cursor, Write};
+use std::io::BufRead;
+use std::io::{Seek, SeekFrom};
 use std::process;
 
 use imap;
@@ -76,8 +79,8 @@ fn fetch_inbox_top() -> imap::error::Result<Option<String>> {
 }
 
 fn main() {
-    let body = fetch_inbox_top().unwrap().unwrap();
-    let message = mail_parser::Message::parse(body.as_bytes()).unwrap();
+    let mail = fetch_inbox_top().unwrap().unwrap();
+    let message = mail_parser::Message::parse(mail.as_bytes()).unwrap();
     let from: String;
     match message.from().clone() {
         mail_parser::HeaderValue::Address(addr) => {
@@ -87,6 +90,10 @@ fn main() {
             println!("err: invalid from header value");
             process::exit(1)
         }
+    }
+    let mut body: String = "".to_string();
+    for i in message.text_body.clone().into_iter() {
+        body = format!("{}", message.body_text(i - 1).unwrap());
     }
 
     let filter_filename = "./filter.toml";
@@ -105,11 +112,18 @@ fn main() {
         }
     };
 
+    let mut c = Cursor::new(Vec::new());
+    for block in body.split("\n\n") {
+        c.write_all(&block.as_bytes()).unwrap();
+        c.write_all(b"\n").unwrap();
+    }
+    c.seek(SeekFrom::Start(0)).unwrap();
+
     println!("from: {}", from);
     println!("date: {}", message.date().unwrap().to_rfc3339());
     println!("subject: {}", message.subject().unwrap());
     println!("body:");
-    for i in message.text_body.clone().into_iter() {
-        println!("{}", message.body_text(i - 1).unwrap());
+    for line in c.lines() {
+        println!("{}", line.unwrap());
     }
 }
