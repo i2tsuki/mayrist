@@ -1,8 +1,6 @@
 use std::env;
 use std::fs;
-use std::io::{Cursor, Write};
-use std::io::BufRead;
-use std::io::{Seek, SeekFrom};
+use std::io::{BufRead, Cursor, Seek, SeekFrom, Write};
 use std::process;
 
 use imap;
@@ -107,7 +105,10 @@ fn main() {
     let filter: Filter = match toml::from_str(&filter_body) {
         Ok(f) => f,
         Err(err) => {
-            println!("err: failed to parse the file `{}`: {}", filter_filename, err);
+            println!(
+                "err: failed to parse the file `{}`: {}",
+                filter_filename, err
+            );
             process::exit(1);
         }
     };
