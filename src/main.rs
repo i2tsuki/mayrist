@@ -6,6 +6,7 @@ use std::process;
 use imap;
 use mail_parser;
 use native_tls;
+use regex::Regex;
 use serde_derive::Deserialize;
 use toml;
 
@@ -114,9 +115,19 @@ fn main() {
     };
 
     let mut c = Cursor::new(Vec::new());
-    for block in body.split("\n\n") {
-        c.write_all(&block.as_bytes()).unwrap();
-        c.write_all(b"\n").unwrap();
+    for block in body.split("\r\n\r\n") {
+        let mut filter_match: bool = false;        
+        for filter_block in &filter.all.block {     
+            let re = Regex::new(&(filter_block.trim().replace("<url>", r"https://\S+") + "$")).unwrap();
+            if block.trim() == filter_block.trim() || re.is_match(block.trim()) {
+                filter_match = true;
+                break;
+            }
+        }
+        if !filter_match {
+            c.write_all(&block.as_bytes()).unwrap();
+        }
+        c.write_all(b"\n").unwrap();        
     }
     c.seek(SeekFrom::Start(0)).unwrap();
 
