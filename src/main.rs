@@ -114,11 +114,13 @@ fn main() {
         }
     };
 
+    // remove blocks with block filter rule defined in `filter.yaml`
     let mut c = Cursor::new(Vec::new());
-    for block in body.split("\r\n\r\n") {
-        let mut filter_match: bool = false;        
-        for filter_block in &filter.all.block {     
-            let re = Regex::new(&(filter_block.trim().replace("<url>", r"https://\S+") + "$")).unwrap();
+    for block in body.replace("\r", "").split("\n\n") {
+        let mut filter_match: bool = false;
+        for filter_block in &filter.all.block {
+            let re = Regex::new(&(filter_block.trim().replace("<url>", r"http[s]*://\S+") + "$"))
+                .unwrap();
             if block.trim() == filter_block.trim() || re.is_match(block.trim()) {
                 filter_match = true;
                 break;
@@ -126,8 +128,8 @@ fn main() {
         }
         if !filter_match {
             c.write_all(&block.as_bytes()).unwrap();
+            c.write_all(b"\n\n").unwrap();
         }
-        c.write_all(b"\n").unwrap();        
     }
     c.seek(SeekFrom::Start(0)).unwrap();
 
@@ -135,7 +137,17 @@ fn main() {
     println!("date: {}", message.date().unwrap().to_rfc3339());
     println!("subject: {}", message.subject().unwrap());
     println!("body:");
-    for line in c.lines() {
-        println!("{}", line.unwrap());
+    let mut previous_is_blank = false;
+    for l in c.lines() {
+        let line = l.unwrap();
+        if !previous_is_blank && line == "" {
+            previous_is_blank = true;
+            println!("");
+        } else if line == "" {
+            print!("");
+        } else {
+            previous_is_blank = false;
+            println!("{}", line);
+        }
     }
 }
