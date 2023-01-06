@@ -132,14 +132,33 @@ fn main() {
         }
     }
     c.seek(SeekFrom::Start(0)).unwrap();
+    
+    // remove lines with line filter rule defined in `filter.yaml`
+    let mut str: String = "".to_string();
+    for l in c.clone().lines() {
+        let line: String = l.unwrap();
+        let mut filter_match: bool = false;
+        for filter_line in &filter.all.line {
+            if line == *filter_line {
+                filter_match = true;
+                break;
+            }
+        }
+        if !filter_match {
+            str = format!("{}{}\n", str, line);
+        }
+    }
+    c = Cursor::new(Vec::new());
+    c.write_all(str.as_bytes()).unwrap();
+    c.seek(SeekFrom::Start(0)).unwrap();
 
     println!("from: {}", from);
     println!("date: {}", message.date().unwrap().to_rfc3339());
     println!("subject: {}", message.subject().unwrap());
     println!("body:");
     let mut previous_is_blank = false;
-    for l in c.lines() {
-        let line = l.unwrap();
+    for l in c.clone().lines() {
+        let line: String = l.unwrap();
         if !previous_is_blank && line == "" {
             previous_is_blank = true;
             println!("");
