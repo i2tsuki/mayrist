@@ -25,7 +25,7 @@ fn fetch_inbox_top() -> imap::error::Result<Option<String>> {
     let imap_host: String = match env::var("IMAP_HOST") {
         Ok(val) => val,
         Err(err) => {
-            println!("err: {}", err);
+            eprintln!("err: {}", err);
             process::exit(1);
         }
     };
@@ -33,7 +33,7 @@ fn fetch_inbox_top() -> imap::error::Result<Option<String>> {
     let imap_user = match env::var("IMAP_USER") {
         Ok(val) => val,
         Err(err) => {
-            println!("err: {}", err);
+            eprintln!("err: {}", err);
             process::exit(1);
         }
     };
@@ -41,7 +41,7 @@ fn fetch_inbox_top() -> imap::error::Result<Option<String>> {
     let imap_password = match env::var("IMAP_PASSWORD") {
         Ok(val) => val,
         Err(err) => {
-            println!("err: {}", err);
+            eprintln!("err: {}", err);
             process::exit(1);
         }
     };
@@ -86,7 +86,7 @@ fn main() {
             from = format!("{} <{}>", addr.name.unwrap(), addr.address.unwrap());
         }
         _default => {
-            println!("err: invalid from header value");
+            eprintln!("err: invalid from header value");
             process::exit(1)
         }
     }
@@ -99,14 +99,14 @@ fn main() {
     let filter_body = match fs::read_to_string(filter_filename) {
         Ok(c) => c,
         Err(_) => {
-            println!("err: could not read the file `{}`", filter_filename);
+            eprintln!("err: could not read the file `{}`", filter_filename);
             process::exit(1);
         }
     };
     let filter: Filter = match toml::from_str(&filter_body) {
         Ok(f) => f,
         Err(err) => {
-            println!(
+            eprintln!(
                 "err: failed to parse the file `{}`: {}",
                 filter_filename, err
             );
@@ -132,7 +132,7 @@ fn main() {
         }
     }
     c.seek(SeekFrom::Start(0)).unwrap();
-    
+
     // remove lines with line filter rule defined in `filter.yaml`
     let mut str: String = "".to_string();
     for l in c.clone().lines() {
