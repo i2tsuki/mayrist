@@ -78,7 +78,13 @@ fn fetch_inbox_top() -> imap::error::Result<Option<String>> {
 }
 
 fn main() {
-    let mail = fetch_inbox_top().unwrap().unwrap();
+    let mail = match fetch_inbox_top() {
+        Ok(m) => m.unwrap(),
+        Err(err) => {
+            eprintln!("err: failed to get the message: {}", err);
+            process::exit(1)
+        }
+    };
     let message = mail_parser::Message::parse(mail.as_bytes()).unwrap();
     let from: String;
     match message.from().clone() {
