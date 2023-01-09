@@ -21,34 +21,10 @@ struct All {
     line: Vec<String>,
 }
 
-fn fetch_inbox_top() -> imap::error::Result<Option<String>> {
-    let imap_host: String = match env::var("IMAP_HOST") {
-        Ok(val) => val,
-        Err(err) => {
-            eprintln!("err: {}", err);
-            process::exit(1);
-        }
-    };
-
-    let imap_user = match env::var("IMAP_USER") {
-        Ok(val) => val,
-        Err(err) => {
-            eprintln!("err: {}", err);
-            process::exit(1);
-        }
-    };
-
-    let imap_password = match env::var("IMAP_PASSWORD") {
-        Ok(val) => val,
-        Err(err) => {
-            eprintln!("err: {}", err);
-            process::exit(1);
-        }
-    };
-
+fn fetch_inbox_top(host: String, user: String, password: String) -> imap::error::Result<Option<String>> {
     let tls = native_tls::TlsConnector::builder().build().unwrap();
-    let client = imap::connect((imap_host.clone(), 993), imap_host, &tls).unwrap();
-    let mut session = client.login(imap_user, imap_password).map_err(|e| e.0)?;
+    let client = imap::connect((host.clone(), 993), host, &tls).unwrap();
+    let mut session = client.login(user, password).map_err(|e| e.0)?;
 
     session.select("INBOX")?;
 
@@ -78,7 +54,29 @@ fn fetch_inbox_top() -> imap::error::Result<Option<String>> {
 }
 
 fn main() {
-    let mail = match fetch_inbox_top() {
+    let imap_host: String = match env::var("IMAP_HOST") {
+        Ok(val) => val,
+        Err(err) => {
+            eprintln!("err: {}", err);
+            process::exit(1);
+        }
+    };
+    let imap_user = match env::var("IMAP_USER") {
+        Ok(val) => val,
+        Err(err) => {
+            eprintln!("err: {}", err);
+            process::exit(1);
+        }
+    };
+    let imap_password = match env::var("IMAP_PASSWORD") {
+        Ok(val) => val,
+        Err(err) => {
+            eprintln!("err: {}", err);
+            process::exit(1);
+        }
+    };
+
+    let mail = match fetch_inbox_top(imap_host, imap_user, imap_password) {
         Ok(m) => m.unwrap(),
         Err(err) => {
             eprintln!("err: failed to get the message: {}", err);
