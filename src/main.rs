@@ -21,7 +21,7 @@ struct All {
     line: Vec<String>,
 }
 
-fn fetch_inbox_top(host: String, user: String, password: String) -> imap::error::Result<Option<String>> {
+fn fetch_inbox_top(host: String, user: String, password: String) -> imap::error::Result<(u32, Option<String>)> {
     let tls = native_tls::TlsConnector::builder().build().unwrap();
     let client = imap::connect((host.clone(), 993), host, &tls).unwrap();
     let mut session = client.login(user, password).map_err(|e| e.0)?;
@@ -32,14 +32,14 @@ fn fetch_inbox_top(host: String, user: String, password: String) -> imap::error:
     let uid = if let Some(l) = sequences.iter().next() {
         l
     } else {
-        return Ok(None);
+        return Ok((0, None));
     };
 
     let messages = session.fetch(format!("{}", uid), "RFC822")?;
     let message = if let Some(m) = messages.iter().next() {
         m
     } else {
-        return Ok(None);
+        return Ok((0, None));
     };
     session.store(format!("{}", uid), "-FLAGS (\\Seen)")?;
     let body = message.body().expect("message did not have a body!");
@@ -50,7 +50,7 @@ fn fetch_inbox_top(host: String, user: String, password: String) -> imap::error:
     // log out from server
     session.logout()?;
 
-    Ok(Some(body))
+    Ok((*uid, Some(body)))
 }
 
 fn main() {
@@ -76,8 +76,8 @@ fn main() {
         }
     };
 
-    let mail = match fetch_inbox_top(imap_host, imap_user, imap_password) {
-        Ok(m) => m.unwrap(),
+    let (mid ,mail) = match fetch_inbox_top(imap_host, imap_user, imap_password) {
+        Ok((id, m)) => (id, m.unwrap()),
         Err(err) => {
             eprintln!("err: failed to get the message: {}", err);
             process::exit(1)
