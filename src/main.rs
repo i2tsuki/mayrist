@@ -13,6 +13,7 @@ use toml;
 #[derive(Deserialize)]
 struct Filter {
     all: All,
+    message: Vec<Message>,
 }
 
 #[derive(Deserialize)]
@@ -21,7 +22,17 @@ struct All {
     line: Vec<String>,
 }
 
-fn fetch_inbox_top(host: String, user: String, password: String) -> imap::error::Result<(u32, Option<String>)> {
+#[derive(Deserialize)]
+struct Message {
+    from: String,
+    block: Vec<String>,
+}
+
+fn fetch_inbox_top(
+    host: String,
+    user: String,
+    password: String,
+) -> imap::error::Result<(u32, Option<String>)> {
     let tls = native_tls::TlsConnector::builder().build().unwrap();
     let client = imap::connect((host.clone(), 993), host, &tls).unwrap();
     let mut session = client.login(user, password).map_err(|e| e.0)?;
@@ -76,7 +87,7 @@ fn main() {
         }
     };
 
-    let (mid ,mail) = match fetch_inbox_top(imap_host, imap_user, imap_password) {
+    let (mid, mail) = match fetch_inbox_top(imap_host, imap_user, imap_password) {
         Ok((id, m)) => (id, m.unwrap()),
         Err(err) => {
             eprintln!("err: failed to get the message: {}", err);
@@ -128,6 +139,26 @@ fn main() {
             if block.trim() == filter_block.trim() || re.is_match(block.trim()) {
                 filter_match = true;
                 break;
+            }
+        }
+        if !filter_match {
+            let mut filter_message = &Message {
+                from: "".to_string(),
+                block: Vec::new(),
+            };
+            for f in &filter.message {
+                if from.contains(&f.from) {
+                    filter_message = f;
+                }
+            }
+            for filter_block in &filter_message.block {
+                let re =
+                    Regex::new(&(filter_block.trim().replace("<url>", r"http[s]*://\S+") + "$"))
+                        .unwrap();
+                if block.trim() == filter_block.trim() || re.is_match(block.trim()) {
+                    filter_match = true;
+                    break;
+                }
             }
         }
         if !filter_match {
