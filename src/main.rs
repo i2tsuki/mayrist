@@ -88,6 +88,10 @@ fn main() {
     };
 
     let (mid, mail) = match fetch_inbox_top(imap_host, imap_user, imap_password) {
+        Ok((0, None)) => {
+            println!("there are no messages in the mailbox.");
+            process::exit(0);
+        }
         Ok((id, m)) => (id, m.unwrap()),
         Err(err) => {
             eprintln!("err: failed to get the message: {}", err);
