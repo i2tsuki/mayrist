@@ -102,7 +102,11 @@ fn main() {
     let from: String;
     match message.from().clone() {
         mail_parser::HeaderValue::Address(addr) => {
-            from = format!("{} <{}>", addr.name.unwrap(), addr.address.unwrap());
+            let name: &str = match addr.name {
+                Some(ref name) => &name,
+                None => "",
+            };
+            from = format!("{} <{}>", name, addr.address.unwrap());
         }
         _default => {
             eprintln!("err: invalid from header value");
