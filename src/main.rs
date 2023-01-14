@@ -12,8 +12,14 @@ use toml;
 
 #[derive(Deserialize)]
 struct Filter {
+    search: Vec<Search>,
     all: All,
     message: Vec<Message>,
+}
+
+#[derive(Deserialize)]
+struct Search {
+    from: String,
 }
 
 #[derive(Deserialize)]
@@ -32,6 +38,7 @@ fn fetch_inbox_top(
     host: String,
     user: String,
     password: String,
+    search_from: String,
 ) -> imap::error::Result<(u32, Option<String>)> {
     let tls = native_tls::TlsConnector::builder().build().unwrap();
     let client = imap::connect((host.clone(), 993), host, &tls).unwrap();
@@ -39,7 +46,7 @@ fn fetch_inbox_top(
 
     session.select("INBOX")?;
 
-    let sequences = session.search("UNSEEN")?;
+    let sequences = session.search(format!("{}", search_from))?;
     let uid = if let Some(l) = sequences.iter().next() {
         l
     } else {
@@ -87,7 +94,35 @@ fn main() {
         }
     };
 
-    let (mid, mail) = match fetch_inbox_top(imap_host, imap_user, imap_password) {
+    let filter_filename = "./filter.toml";
+    let filter_body = match fs::read_to_string(filter_filename) {
+        Ok(c) => c,
+        Err(_) => {
+            eprintln!("err: could not read the file `{}`", filter_filename);
+            process::exit(1);
+        }
+    };
+    let filter: Filter = match toml::from_str(&filter_body) {
+        Ok(f) => f,
+        Err(err) => {
+            eprintln!(
+                "err: failed to parse the file `{}`: {}",
+                filter_filename, err
+            );
+            process::exit(1);
+        }
+    };
+
+    let mut search_from = "".to_string();
+    let mut iter = filter.search.iter();
+    if filter.search.len() > 0 {
+        search_from = format!("FROM {} UNSEEN", filter.search[0].from);
+        iter.next();
+    }
+    for search in iter {
+        search_from += format!(" OR FROM {} UNSEEN", search.from).as_str();
+    }
+    let (mid, mail) = match fetch_inbox_top(imap_host, imap_user, imap_password, search_from) {
         Ok((0, None)) => {
             println!("there are no messages in the mailbox.");
             process::exit(0);
@@ -118,24 +153,6 @@ fn main() {
         body = format!("{}", message.body_text(i - 1).unwrap());
     }
 
-    let filter_filename = "./filter.toml";
-    let filter_body = match fs::read_to_string(filter_filename) {
-        Ok(c) => c,
-        Err(_) => {
-            eprintln!("err: could not read the file `{}`", filter_filename);
-            process::exit(1);
-        }
-    };
-    let filter: Filter = match toml::from_str(&filter_body) {
-        Ok(f) => f,
-        Err(err) => {
-            eprintln!(
-                "err: failed to parse the file `{}`: {}",
-                filter_filename, err
-            );
-            process::exit(1);
-        }
-    };
 
     // remove blocks with block filter rule defined in `filter.yaml`
     let mut c = Cursor::new(Vec::new());
