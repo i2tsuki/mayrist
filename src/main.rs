@@ -150,9 +150,12 @@ fn main() {
     }
     let mut body: String = "".to_string();
     for i in message.text_body.clone().into_iter() {
-        body = format!("{}", message.body_text(i - 1).unwrap());
+        if i > 0 {
+            body = format!("{}", message.body_text(i - 1).unwrap());
+        } else {
+            body = format!("{}", message.body_text(i).unwrap());
+        }
     }
-
 
     // remove blocks with block filter rule defined in `filter.yaml`
     let mut c = Cursor::new(Vec::new());
