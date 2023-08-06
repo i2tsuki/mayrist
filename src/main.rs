@@ -1,3 +1,6 @@
+use clap::Parser;
+use clap_derive::Parser;
+
 use std::env;
 use std::fs;
 use std::io::{BufRead, Cursor, Seek, SeekFrom, Write};
@@ -9,6 +12,17 @@ use native_tls;
 use regex::Regex;
 use serde_derive::Deserialize;
 use toml;
+
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// From e-mail address to filter body based on it
+    #[arg(long, default_value = "")]
+    from: String,
+    /// File that includes body to filter
+    #[arg(long, default_value = "", requires = "from")]
+    input: String,
+}
 
 #[derive(Deserialize)]
 struct Filter {
@@ -46,6 +60,7 @@ fn fetch_inbox_top(
 
     session.select("INBOX")?;
 
+    eprintln!("SEARCH query: {}", search_from);
     let sequences = session.search(format!("{}", search_from))?;
     let uid = if let Some(l) = sequences.iter().next() {
         l
@@ -59,7 +74,8 @@ fn fetch_inbox_top(
     } else {
         return Ok((0, None));
     };
-    session.store(format!("{}", uid), "-FLAGS (\\Seen)")?;
+    // session.store(format!("{}", uid), "-FLAGS (\\Seen)")?;
+    // session.store(format!("{}", uid), "+FLAGS (\\Deleted)")?;
     let body = message.body().expect("message did not have a body!");
     let body = std::str::from_utf8(body)
         .expect("message was not valid utf-8")
@@ -72,6 +88,82 @@ fn fetch_inbox_top(
 }
 
 fn main() {
+    let filter_filename = "./filter.toml";
+    let filter_body = match fs::read_to_string(filter_filename) {
+        Ok(c) => c,
+        Err(_) => {
+            eprintln!("err: could not read the file `{}`", filter_filename);
+            process::exit(1);
+        }
+    };
+    let filter: Filter = match toml::from_str(&filter_body) {
+        Ok(f) => f,
+        Err(err) => {
+            eprintln!(
+                "err: failed to parse the file `{}`: {}",
+                filter_filename, err
+            );
+            process::exit(1);
+        }
+    };
+
+    let args = Args::parse();
+    if args.from != "" && args.input != "" {        
+        // Select filter to match from
+        let mut filter_message = &Message {
+            from: "".to_string(),
+            block: Vec::new(),
+        };
+        for f in &filter.message {
+            if args.from.contains(&f.from) {
+                filter_message = f;
+            }
+        }
+        
+        let mut c = Cursor::new(Vec::new());
+        let body = match fs::read_to_string(args.input) {
+            Ok(c) => c,
+            Err(_) => {
+                eprintln!("err: could not read the file `{}`", filter_filename);
+                process::exit(1);
+            }
+        };    
+        for block in body.replace("\r", "").split("\n\n") {
+            let mut filter_match: bool = false;
+            if !filter_match {
+                for filter_block in &filter_message.block {
+                    let re =
+                        Regex::new(&(filter_block.trim().replace("<url>", r"http[s]*://\S+") + "$"))
+                            .unwrap();
+                    if block.trim() == filter_block.trim() || re.is_match(block.trim()) {
+                        filter_match = true;
+                        break;
+                    }
+                }
+            }
+            if !filter_match {
+                c.write_all(&block.as_bytes()).unwrap();
+                c.write_all(b"\n\n").unwrap();
+            }
+        }
+        c.seek(SeekFrom::Start(0)).unwrap();
+        println!("body:");
+        let mut previous_is_blank = false;
+        for l in c.clone().lines() {
+            let line: String = l.unwrap();
+            if !previous_is_blank && line == "" {
+                previous_is_blank = true;
+                println!("");
+            } else if line == "" {
+                print!("");
+            } else {
+                previous_is_blank = false;
+                println!("{}", line);
+            }
+        }
+        process::exit(0);    
+    }
+
     let imap_host: String = match env::var("IMAP_HOST") {
         Ok(val) => val,
         Err(err) => {
@@ -94,25 +186,6 @@ fn main() {
         }
     };
 
-    let filter_filename = "./filter.toml";
-    let filter_body = match fs::read_to_string(filter_filename) {
-        Ok(c) => c,
-        Err(_) => {
-            eprintln!("err: could not read the file `{}`", filter_filename);
-            process::exit(1);
-        }
-    };
-    let filter: Filter = match toml::from_str(&filter_body) {
-        Ok(f) => f,
-        Err(err) => {
-            eprintln!(
-                "err: failed to parse the file `{}`: {}",
-                filter_filename, err
-            );
-            process::exit(1);
-        }
-    };
-
     let mut search_from = "".to_string();
     let mut iter = filter.search.iter();
     if filter.search.len() > 0 {
@@ -124,7 +197,7 @@ fn main() {
     }
     let (mid, mail) = match fetch_inbox_top(imap_host, imap_user, imap_password, search_from) {
         Ok((0, None)) => {
-            println!("there are no messages in the mailbox.");
+            eprintln!("there are no messages in the mailbox.");
             process::exit(0);
         }
         Ok((id, m)) => (id, m.unwrap()),
@@ -134,6 +207,7 @@ fn main() {
         }
     };
     let message = mail_parser::Message::parse(mail.as_bytes()).unwrap();
+
     let from: String;
     match message.from().clone() {
         mail_parser::HeaderValue::Address(addr) => {
@@ -149,6 +223,7 @@ fn main() {
         }
     }
     let mut body: String = "".to_string();
+    // eprintln!("{:?}", message.body_text(0));
     for i in message.text_body.clone().into_iter() {
         if i > 0 {
             body = format!("{}", message.body_text(i - 1).unwrap());
@@ -214,7 +289,8 @@ fn main() {
     c = Cursor::new(Vec::new());
     c.write_all(str.as_bytes()).unwrap();
     c.seek(SeekFrom::Start(0)).unwrap();
-
+    
+    eprintln!("original_body: \n{}", body);
     println!("from: {}", from);
     println!("date: {}", message.date().unwrap().to_rfc3339());
     println!("subject: {}", message.subject().unwrap());
