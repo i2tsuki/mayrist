@@ -22,6 +22,9 @@ struct Args {
     /// File that includes body to filter
     #[arg(long, default_value = "", requires = "from")]
     input: String,
+    /// Flag that indicates whether delete or not after fetching the email
+    #[arg(long, default_value = "false")]
+    delete: bool,
 }
 
 #[derive(Deserialize)]
@@ -162,7 +165,6 @@ fn main() {
             }
         }
     } else {
-
         let imap_host: String = match env::var("IMAP_HOST") {
             Ok(val) => val,
             Err(err) => {
@@ -194,7 +196,7 @@ fn main() {
         for search in iter {
             search_from += format!(" OR FROM {} UNSEEN", search.from).as_str();
         }
-        let (mid, mail) = match fetch_inbox_top(imap_host, imap_user, imap_password, search_from) {
+        let (mid, mail) = match fetch_inbox_top(imap_host.clone(), imap_user.clone(), imap_password.clone(), search_from) {
             Ok((0, None)) => {
                 eprintln!("there are no messages in the mailbox.");
                 process::exit(0);
@@ -307,5 +309,13 @@ fn main() {
                 println!("{}", line);
             }
         }
+        if args.delete {
+            let tls = native_tls::TlsConnector::builder().build().unwrap();
+            let client = imap::connect((imap_host.clone(), 993), imap_host, &tls).unwrap();
+            let mut session = client.login(imap_user, imap_password).map_err(|e| e.0).unwrap();
+            session.select("INBOX").unwrap();
+            session.store(format!("{}", mid), "+FLAGS (\\Deleted)").unwrap();
+            eprint!("Deleted the message: {}", mid);
+        }    
     }
 }
