@@ -189,13 +189,17 @@ fn main() {
 
         let mut search_from = "".to_string();
         let mut iter = filter.search.iter();
-        if filter.search.len() > 0 {
-            search_from = format!("FROM {} UNSEEN", filter.search[0].from);
+        if filter.search.len() > 1 {
+            search_from = format!("(OR UNSEEN FROM \"{}\"", filter.search[0].from);
             iter.next();
         }
         for search in iter {
-            search_from += format!(" OR FROM {} UNSEEN", search.from).as_str();
+            search_from += format!(" FROM \"{}\"", search.from).as_str();
         }
+        if filter.search.len() > 1 {
+            search_from += format!(")").as_str();
+        }
+        
         let (mid, mail) = match fetch_inbox_top(imap_host.clone(), imap_user.clone(), imap_password.clone(), search_from) {
             Ok((0, None)) => {
                 eprintln!("there are no messages in the mailbox.");
